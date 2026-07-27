@@ -11,6 +11,7 @@ O projeto tambem ja esta publicado em ambiente online:
 - Frontend na Vercel: https://dti-simulador-de-encomendas-em-dron.vercel.app/
 - Backend no Railway, usando Docker
 - Banco de dados MySQL no Railway
+- Swagger: https://dtisimuladordeencomendasemdroneguilhermefe-production.up.railway.app/swagger/index.html
 
 O ambiente local com Docker Compose continua funcionando normalmente e usa um MySQL local em container.
 
