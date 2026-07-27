@@ -9,6 +9,10 @@ export function usePolling(callback: () => Promise<void>, intervalMs: number) {
   }, [callback]);
 
   useEffect(() => {
+    if (intervalMs <= 0) {
+      return;
+    }
+
     let isMounted = true;
 
     async function tick() {

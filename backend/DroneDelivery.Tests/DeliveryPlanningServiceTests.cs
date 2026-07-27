@@ -113,10 +113,10 @@ public sealed class DeliveryPlanningServiceTests
         var charging = CreateDrone("Charging", capacity: 10, range: 100, battery: 100, margin: 5);
         charging.Status = DroneStatus.Charging;
         charging.ChargingStartedAtUtc = new DateTime(2026, 7, 25, 12, 0, 0, DateTimeKind.Utc);
-        charging.BatteryAtChargingStartPercentage = 90;
+        charging.BatteryAtChargingStartPercentage = 0;
         charging.ChargingCompletedAtUtc = new DateTime(2026, 7, 25, 12, 0, 10, DateTimeKind.Utc);
         dbContext.Drones.AddRange(inactive, charging, CreateDrone("Idle", capacity: 10, range: 100, battery: 100, margin: 5));
-        dbContext.Orders.Add(CreateQueuedOrder("Order", OrderPriority.High, weight: 1, x: 1, y: 0, queuedAt: new DateTime(2026, 7, 25, 12, 0, 0, DateTimeKind.Utc)));
+        dbContext.Orders.Add(CreateQueuedOrder("Order", OrderPriority.High, weight: 1, x: 10, y: 0, queuedAt: new DateTime(2026, 7, 25, 12, 0, 0, DateTimeKind.Utc)));
         await dbContext.SaveChangesAsync();
         var service = CreateService(dbContext, clock: new FakeClock { UtcNow = new DateTime(2026, 7, 25, 12, 0, 5, DateTimeKind.Utc) });
 
@@ -349,7 +349,33 @@ public sealed class DeliveryPlanningServiceTests
         Assert.Equal(1, secondPlan.OrdersAllocated);
         Assert.Equal(2, dbContext.Trips.Count());
         Assert.Empty(dbContext.Orders.Where(order => order.QueueStatus == OrderQueueStatus.Queued));
+        Assert.Equal(98m, dbContext.Drones.Single().BatteryLevelPercent);
         Assert.Null(dbContext.Drones.Single().ChargingCompletedAtUtc);
+    }
+
+    [Fact]
+    public async Task ProcessQueueAsync_StopsChargingWhenCurrentBatteryCanServeQueuedOrder()
+    {
+        await using var dbContext = TestDbContextFactory.Create();
+        var now = new DateTime(2026, 7, 25, 13, 0, 0, DateTimeKind.Utc);
+        var drone = CreateDrone("DRN", capacity: 5, range: 100, battery: 5, margin: 5);
+        drone.Status = DroneStatus.Charging;
+        drone.ChargingStartedAtUtc = now.AddSeconds(-5);
+        drone.BatteryAtChargingStartPercentage = 5;
+        drone.ChargingCompletedAtUtc = now.AddSeconds(45);
+        dbContext.Drones.Add(drone);
+        dbContext.Orders.Add(CreateQueuedOrder("Queued", OrderPriority.High, weight: 2, x: 2, y: 0, queuedAt: now.AddMinutes(-1)));
+        await dbContext.SaveChangesAsync();
+        var service = CreateService(dbContext, batteryConsumptionPerKm: 1m, clock: new FakeClock { UtcNow = now });
+
+        var plan = await service.ProcessQueueAsync(CancellationToken.None);
+
+        var trip = Assert.Single(plan.Trips);
+        Assert.Equal(15m, trip.BatteryAtDeparturePercentage);
+        Assert.Equal(15m, dbContext.Drones.Single().BatteryLevelPercent);
+        Assert.Equal(DroneStatus.Idle, dbContext.Drones.Single().Status);
+        Assert.Null(dbContext.Drones.Single().ChargingCompletedAtUtc);
+        Assert.Equal(OrderQueueStatus.Planned, dbContext.Orders.Single().QueueStatus);
     }
 
     [Fact]
@@ -367,6 +393,20 @@ public sealed class DeliveryPlanningServiceTests
         Assert.Equal(DroneStatus.Charging, middle.Status);
         Assert.Equal(100m, completed.BatteryLevelPercent);
         Assert.Equal(DroneStatus.Idle, completed.Status);
+    }
+
+    [Fact]
+    public void ChargingService_StartChargingUsesConfiguredRate()
+    {
+        var service = new ChargingService(Options.Create(new SimulationOptions { ChargingPercentagePointsPerSecond = 1m }));
+        var startedAt = new DateTime(2026, 7, 25, 12, 0, 0, DateTimeKind.Utc);
+        var drone = CreateDrone("DRN", capacity: 10, range: 100, battery: 98, margin: 5);
+        drone.ChargingRatePercentagePointsPerSecond = 2;
+
+        service.StartChargingIfNeeded(drone, 98, startedAt);
+
+        Assert.Equal(1m, drone.ChargingRatePercentagePointsPerSecond);
+        Assert.Equal(startedAt.AddSeconds(2), drone.ChargingCompletedAtUtc);
     }
 
     private static DeliveryPlanningService CreateService(

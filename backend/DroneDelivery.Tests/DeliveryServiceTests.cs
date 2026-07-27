@@ -98,7 +98,7 @@ public sealed class DeliveryServiceTests
 
         Assert.Equal(DeliveryStatus.Delivered, simulated.Status);
         Assert.Equal(DroneStatus.Charging, drone.Status);
-        Assert.Equal(85m, drone.BatteryLevelPercent);
+        Assert.Equal(75m, drone.BatteryLevelPercent);
         Assert.Equal(0m, drone.CurrentX);
         Assert.Equal(0m, drone.CurrentY);
     }

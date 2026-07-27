@@ -66,7 +66,7 @@ public sealed class DeliveryPlanningService : IDeliveryPlanningService
         CancellationToken cancellationToken)
     {
         var utcNow = _clock.UtcNow;
-        _logger.LogInformation("Delivery planning started at {UtcNow}.", utcNow);
+        _logger.LogDebug("Delivery planning started at {UtcNow}.", utcNow);
         await CompleteElapsedTripsAsync(utcNow, cancellationToken);
 
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -116,7 +116,7 @@ public sealed class DeliveryPlanningService : IDeliveryPlanningService
         var drones = await LoadAvailableDronesAsync(utcNow, cancellationToken);
         var safetyMargin = (await _droneSettingsService.GetAsync(cancellationToken)).BatterySafetyMarginPercentagePoints;
 
-        _logger.LogInformation("Planning {QueuedOrderCount} queued orders with {DroneCount} available drones.", orders.Count, drones.Count);
+        _logger.LogDebug("Planning {QueuedOrderCount} queued orders with {DroneCount} available drones.", orders.Count, drones.Count);
 
         var plan = await BuildBestPlanAsync(orders, drones, utcNow, safetyMargin, cancellationToken);
         var createdTrips = new List<Trip>();
@@ -136,7 +136,7 @@ public sealed class DeliveryPlanningService : IDeliveryPlanningService
         await _dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-        _logger.LogInformation("Delivery planning generated {TripCount} trips and left {UnallocatedCount} orders queued.", createdTrips.Count, plan.UnallocatedOrders.Count);
+        _logger.LogDebug("Delivery planning generated {TripCount} trips and left {UnallocatedCount} orders queued.", createdTrips.Count, plan.UnallocatedOrders.Count);
 
         var trips = await GetTripsByIdsAsync(createdTrips.Select(trip => trip.Id).ToList(), utcNow, cancellationToken);
         return new DeliveryPlanningResponse(
@@ -201,6 +201,17 @@ public sealed class DeliveryPlanningService : IDeliveryPlanningService
         foreach (var drone in drones)
         {
             var runtime = _chargingService.GetCurrentState(drone, utcNow);
+            if (runtime.Status == DroneStatus.Charging)
+            {
+                if (await _droneOrderCapabilityService.CanServeAnyPendingOrderAsync(drone, runtime.BatteryLevelPercent, cancellationToken))
+                {
+                    StopCharging(drone, runtime.BatteryLevelPercent);
+                    available.Add(drone);
+                }
+
+                continue;
+            }
+
             if (runtime.Status != DroneStatus.Idle)
             {
                 continue;
@@ -208,17 +219,22 @@ public sealed class DeliveryPlanningService : IDeliveryPlanningService
 
             if (drone.Status == DroneStatus.Charging && drone.ChargingCompletedAtUtc is not null && utcNow >= drone.ChargingCompletedAtUtc)
             {
-                drone.Status = DroneStatus.Idle;
-                drone.BatteryLevelPercent = runtime.BatteryLevelPercent;
-                drone.ChargingStartedAtUtc = null;
-                drone.BatteryAtChargingStartPercentage = null;
-                drone.ChargingCompletedAtUtc = null;
+                StopCharging(drone, runtime.BatteryLevelPercent);
             }
 
             available.Add(drone);
         }
 
         return available;
+    }
+
+    private static void StopCharging(Drone drone, decimal batteryLevelPercent)
+    {
+        drone.Status = DroneStatus.Idle;
+        drone.BatteryLevelPercent = Math.Clamp(Math.Round(batteryLevelPercent, 2), 0m, 100m);
+        drone.ChargingStartedAtUtc = null;
+        drone.BatteryAtChargingStartPercentage = null;
+        drone.ChargingCompletedAtUtc = null;
     }
 
     private async Task<PlanningCandidate> BuildBestPlanAsync(

@@ -23,7 +23,7 @@ public sealed class DroneServiceTests
         Assert.Equal("Drone DRN-900", drone.Name);
         Assert.True(drone.IsActive);
         Assert.Equal(60m, drone.AverageSpeedKmPerHour);
-        Assert.Equal(1.5m, drone.BatteryConsumptionPercentagePerKm);
+        Assert.Equal(2.5m, drone.BatteryConsumptionPercentagePerKm);
     }
 
     [Fact]
@@ -146,6 +146,48 @@ public sealed class DroneServiceTests
     }
 
     [Fact]
+    public async Task GetAllAsync_CompletesElapsedIndividualDeliveriesAndUpdatesBattery()
+    {
+        await using var dbContext = TestDbContextFactory.Create();
+        var now = new DateTime(2026, 7, 25, 12, 0, 0, DateTimeKind.Utc);
+        var drone = CreateDrone("DRN");
+        var order = CreateOrder("Order", OrderQueueStatus.Allocated, OrderStatus.InTransit);
+        dbContext.AddRange(drone, order);
+        await dbContext.SaveChangesAsync();
+        dbContext.Deliveries.Add(new Delivery
+        {
+            DroneId = drone.Id,
+            OrderId = order.Id,
+            Status = DeliveryStatus.InTransit,
+            StartX = 0,
+            StartY = 0,
+            DestinationX = 3,
+            DestinationY = 4,
+            EndX = 0,
+            EndY = 0,
+            EstimatedDistanceKm = 10,
+            EstimatedBatteryConsumptionPercent = 25,
+            EstimatedDurationMinutes = 10,
+            AllocatedAt = now.AddMinutes(-1),
+            CreatedAtUtc = now.AddMinutes(-1),
+            LoadingStartedAtUtc = now.AddMinutes(-1),
+            FlyingStartedAtUtc = now.AddSeconds(-50),
+            DeliveringStartedAtUtc = now.AddSeconds(-40),
+            ReturningStartedAtUtc = now.AddSeconds(-30),
+            CompletedAtUtc = now
+        });
+        await dbContext.SaveChangesAsync();
+        var service = CreateService(dbContext);
+
+        var result = await service.GetAllAsync(CancellationToken.None);
+
+        var response = Assert.Single(result);
+        Assert.Equal(75m, response.BatteryLevelPercent);
+        Assert.Equal(75m, dbContext.Drones.Single().BatteryLevelPercent);
+        Assert.Equal(OrderStatus.Delivered, dbContext.Orders.Single().Status);
+    }
+
+    [Fact]
     public async Task Planning_IgnoresInactiveDrones()
     {
         await using var dbContext = TestDbContextFactory.Create();
@@ -184,8 +226,28 @@ public sealed class DroneServiceTests
             new ChargingService(Options.Create(new SimulationOptions { ChargingPercentagePointsPerSecond = 2 })),
             new FakeClock(),
             settingsService,
-            CreatePlanningService(dbContext));
+            CreatePlanningService(dbContext),
+            CreateDeliveryService(dbContext));
     }
+
+    private static DeliveryService CreateDeliveryService(DroneDeliveryDbContext dbContext) =>
+        new(
+            dbContext,
+            new DistanceService(),
+            new RoutePlanningService(dbContext, new DistanceService()),
+            new DroneStateService(),
+            new DeliveryStateService(),
+            new TripStateService(),
+            new ChargingService(Options.Create(new SimulationOptions { ChargingPercentagePointsPerSecond = 1 })),
+            new DroneOrderCapabilityService(
+                dbContext,
+                new RoutePlanningService(dbContext, new DistanceService()),
+                new DroneSettingsService(dbContext),
+                Options.Create(new DroneDeliveryOptions { BaseX = 0, BaseY = 0, RequireReturnToBase = true })),
+            new FakeClock(),
+            new DroneSettingsService(dbContext),
+            Options.Create(new DroneDeliveryOptions { BaseX = 0, BaseY = 0, RequireReturnToBase = true }),
+            Options.Create(new SimulationOptions { LoadingDurationSeconds = 3, DeliveryDurationSeconds = 3, SecondsPerKilometer = 2, ChargingPercentagePointsPerSecond = 1 }));
 
     private static DeliveryPlanningService CreatePlanningService(DroneDeliveryDbContext dbContext) =>
         new(
@@ -206,7 +268,7 @@ public sealed class DroneServiceTests
             NullLogger<DeliveryPlanningService>.Instance);
 
     private static CreateDroneRequest CreateRequest(string code) =>
-        new(code, $"Drone {code}", 5, 30, 100, 60, 1.5m, 0, 0, DroneStatus.Idle, null, true);
+        new(code, $"Drone {code}", 5, 30, 100, 60, 2.5m, 0, 0, DroneStatus.Idle, null, true);
 
     private static UpdateDroneRequest ToRequest(Drone drone) =>
         new(drone.Code, drone.Name, drone.MaxPackageWeightKg, drone.MaxRangeKm, drone.BatteryLevelPercent,

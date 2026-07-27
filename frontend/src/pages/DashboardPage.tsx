@@ -52,7 +52,7 @@ export function DashboardPage() {
               <strong>{dashboard.queuedOrders.length}</strong>
             </article>
             <article className="summary-card">
-              <span>Atualizado agora</span>
+              <span>Horario atual</span>
               <strong>{formatTime(dashboard.currentUtc)}</strong>
             </article>
           </div>

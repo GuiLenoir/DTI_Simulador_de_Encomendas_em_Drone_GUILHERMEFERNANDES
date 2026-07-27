@@ -16,7 +16,7 @@ public sealed class Drone
     public decimal CurrentX { get; set; }
     public decimal CurrentY { get; set; }
     public decimal AverageSpeedKmPerHour { get; set; } = 60m;
-    public decimal BatteryConsumptionPercentagePerKm { get; set; } = 1.5m;
+    public decimal BatteryConsumptionPercentagePerKm { get; set; } = 2.5m;
     public string? Notes { get; set; }
     public bool IsActive { get; set; } = true;
     public DroneStatus Status { get; set; } = DroneStatus.Idle;

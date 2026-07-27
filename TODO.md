@@ -42,11 +42,15 @@
 - [x] Add reports API with delivery summary, drone efficiency, and delivery map
 - [x] Add customer simulation API with order creation and tracking
 - [x] Update delivery, order, and drone list statuses from elapsed timelines
+- [x] Update drone status battery from elapsed individual delivery timelines
 - [x] Add global delivery planning queue
 - [x] Add multi-order trip planning
 - [x] Add configurable battery safety margin
 - [x] Add timestamp-based drone charging simulation
 - [x] Only recharge drones after trips when no pending order can be served with current battery
+- [x] Interrupt drone charging when queued orders can be served with current battery
+- [x] Use global charging rate so post-trip battery loss remains visible in the simulation
+- [x] Increase demo battery consumption and set charging to 1 percentage point per second
 - [x] Add delivery queue by priority and creation time
 - [x] Add global exception middleware
 - [x] Add backend tests
@@ -72,6 +76,8 @@
 - [x] Add delivery allocation flow
 - [x] Add frontend Dockerfile
 - [x] Add live dashboard polling
+- [x] Suppress routine EF SQL command logs without slowing live polling
+- [x] Prevent unchanged tracked entities from generating timestamp-only UPDATE statements
 - [x] Add delivery progress visualization
 - [x] Add order-name tooltip to allocated delivery order numbers
 - [x] Add global queue and planning actions
@@ -93,11 +99,3 @@
 - [x] Improve reports delivery map explorer
 - [x] Add simulated customer frontend tab
 - [x] Document planning heuristic and no-fly-zone routing
-
-## Not Started By Request
-
-- [x] Frontend tests
-- [x] Frontend coverage tooling
-- [x] Demo deployment configuration
-- [ ] Backend coverage tooling
-- [ ] Screenshots

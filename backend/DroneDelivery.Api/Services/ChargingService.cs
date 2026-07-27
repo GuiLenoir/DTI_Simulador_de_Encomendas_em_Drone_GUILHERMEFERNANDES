@@ -52,9 +52,9 @@ public sealed class ChargingService : IChargingService
             return;
         }
 
-        var rate = drone.ChargingRatePercentagePointsPerSecond > 0
-            ? drone.ChargingRatePercentagePointsPerSecond
-            : _simulationOptions.ChargingPercentagePointsPerSecond;
+        var rate = _simulationOptions.ChargingPercentagePointsPerSecond > 0
+            ? _simulationOptions.ChargingPercentagePointsPerSecond
+            : drone.ChargingRatePercentagePointsPerSecond;
         var secondsToFull = (int)Math.Ceiling((100m - battery) / rate);
 
         drone.Status = DroneStatus.Charging;

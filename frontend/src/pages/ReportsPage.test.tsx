@@ -79,7 +79,7 @@ describe("ReportsPage", () => {
         currentY: 0,
         status: "Idle",
         averageSpeedKmPerHour: 60,
-        batteryConsumptionPercentagePerKm: 1.5,
+        batteryConsumptionPercentagePerKm: 2.5,
         batterySafetyMarginPercentagePoints: 5,
         notes: null,
         isActive: true,

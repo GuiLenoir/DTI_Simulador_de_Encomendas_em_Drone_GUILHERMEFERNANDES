@@ -29,6 +29,11 @@ public sealed class DroneDeliveryDbContext : DbContext
         var now = DateTime.UtcNow;
         foreach (var entry in ChangeTracker.Entries())
         {
+            if (entry.State is not (EntityState.Added or EntityState.Modified))
+            {
+                continue;
+            }
+
             if (entry.Entity is Drone drone)
             {
                 if (entry.State == EntityState.Added)

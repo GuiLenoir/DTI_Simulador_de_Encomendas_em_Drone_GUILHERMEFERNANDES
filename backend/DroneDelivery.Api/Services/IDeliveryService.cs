@@ -8,5 +8,6 @@ public interface IDeliveryService
     Task<DeliveryResponse> GetByIdAsync(int id, CancellationToken cancellationToken);
     Task<DeliveryResponse> AllocateAsync(int orderId, CancellationToken cancellationToken);
     Task<DeliveryResponse> SimulateAsync(int deliveryId, CancellationToken cancellationToken);
+    Task CompleteElapsedAsync(CancellationToken cancellationToken);
     Task DeleteAsync(int id, CancellationToken cancellationToken);
 }

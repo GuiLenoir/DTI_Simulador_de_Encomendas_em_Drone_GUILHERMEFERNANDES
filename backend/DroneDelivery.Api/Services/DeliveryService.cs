@@ -212,6 +212,11 @@ public sealed class DeliveryService : IDeliveryService
         return delivery.ToResponse();
     }
 
+    public async Task CompleteElapsedAsync(CancellationToken cancellationToken)
+    {
+        await CompleteElapsedDeliveriesAsync(_clock.UtcNow, cancellationToken);
+    }
+
     public async Task DeleteAsync(int id, CancellationToken cancellationToken)
     {
         var delivery = await FindAsync(id, cancellationToken);

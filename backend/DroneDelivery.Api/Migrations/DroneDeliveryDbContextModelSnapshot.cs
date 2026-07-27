@@ -279,7 +279,7 @@ namespace DroneDelivery.Api.Migrations
                         {
                             Id = 1,
                             AverageSpeedKmPerHour = 60m,
-                            BatteryConsumptionPercentagePerKm = 1.5m,
+                            BatteryConsumptionPercentagePerKm = 2.5m,
                             BatteryLevelPercent = 100m,
                             BatterySafetyMarginPercentagePoints = 5m,
                             ChargingRatePercentagePointsPerSecond = 2m,
@@ -298,7 +298,7 @@ namespace DroneDelivery.Api.Migrations
                         {
                             Id = 2,
                             AverageSpeedKmPerHour = 60m,
-                            BatteryConsumptionPercentagePerKm = 1.5m,
+                            BatteryConsumptionPercentagePerKm = 2.5m,
                             BatteryLevelPercent = 85m,
                             BatterySafetyMarginPercentagePoints = 5m,
                             ChargingRatePercentagePointsPerSecond = 2m,
@@ -317,7 +317,7 @@ namespace DroneDelivery.Api.Migrations
                         {
                             Id = 3,
                             AverageSpeedKmPerHour = 60m,
-                            BatteryConsumptionPercentagePerKm = 1.5m,
+                            BatteryConsumptionPercentagePerKm = 2.5m,
                             BatteryLevelPercent = 70m,
                             BatterySafetyMarginPercentagePoints = 5m,
                             ChargingRatePercentagePointsPerSecond = 2m,

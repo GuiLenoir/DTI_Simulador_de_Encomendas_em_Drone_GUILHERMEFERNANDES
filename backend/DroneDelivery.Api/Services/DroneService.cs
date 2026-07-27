@@ -15,6 +15,7 @@ public sealed class DroneService : IDroneService
     private readonly IClock _clock;
     private readonly IDroneSettingsService _settingsService;
     private readonly IDeliveryPlanningService _deliveryPlanningService;
+    private readonly IDeliveryService _deliveryService;
 
     public DroneService(
         DroneDeliveryDbContext dbContext,
@@ -23,7 +24,8 @@ public sealed class DroneService : IDroneService
         IChargingService chargingService,
         IClock clock,
         IDroneSettingsService settingsService,
-        IDeliveryPlanningService deliveryPlanningService)
+        IDeliveryPlanningService deliveryPlanningService,
+        IDeliveryService deliveryService)
     {
         _dbContext = dbContext;
         _deliveryStateService = deliveryStateService;
@@ -32,10 +34,13 @@ public sealed class DroneService : IDroneService
         _clock = clock;
         _settingsService = settingsService;
         _deliveryPlanningService = deliveryPlanningService;
+        _deliveryService = deliveryService;
     }
 
     public async Task<IReadOnlyList<DroneResponse>> GetAllAsync(CancellationToken cancellationToken)
     {
+        await _deliveryService.CompleteElapsedAsync(cancellationToken);
+        await _deliveryPlanningService.ProcessQueueAsync(cancellationToken);
         var utcNow = _clock.UtcNow;
         var settings = await _settingsService.GetAsync(cancellationToken);
         var drones = await _dbContext.Drones
@@ -66,6 +71,8 @@ public sealed class DroneService : IDroneService
 
     public async Task<DroneResponse> GetByIdAsync(int id, CancellationToken cancellationToken)
     {
+        await _deliveryService.CompleteElapsedAsync(cancellationToken);
+        await _deliveryPlanningService.ProcessQueueAsync(cancellationToken);
         var utcNow = _clock.UtcNow;
         var settings = await _settingsService.GetAsync(cancellationToken);
         var drone = await FindAsync(id, cancellationToken);

@@ -25,7 +25,7 @@ const blankForm: DroneRequest = {
   maxRangeKm: 10,
   batteryLevelPercent: 100,
   averageSpeedKmPerHour: 60,
-  batteryConsumptionPercentagePerKm: 1.5,
+  batteryConsumptionPercentagePerKm: 2.5,
   currentX: 0,
   currentY: 0,
   status: "Idle",
