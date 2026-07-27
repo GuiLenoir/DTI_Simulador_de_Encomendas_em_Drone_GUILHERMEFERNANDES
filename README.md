@@ -44,12 +44,6 @@ O ambiente local com Docker Compose continua funcionando normalmente e usa um My
 
 ## Como executar com Docker
 
-Crie o arquivo `.env` a partir do exemplo:
-
-```bash
-cp .env.example .env
-```
-
 Suba a aplicacao:
 
 ```bash
