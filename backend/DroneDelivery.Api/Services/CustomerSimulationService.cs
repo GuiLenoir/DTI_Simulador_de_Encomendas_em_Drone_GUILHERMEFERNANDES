@@ -75,16 +75,19 @@ public sealed class CustomerSimulationService : ICustomerSimulationService
     private CustomerTrackingResponse MapTripTracking(DeliveryOrder order, Trip trip, DateTime utcNow)
     {
         var state = _tripStateService.GetCurrentState(trip, utcNow);
-        var route = BuildTripRoute(trip, order.Id);
-        var position = Interpolate(route, trip.FlyingStartedAtUtc, trip.CompletedAtUtc, utcNow);
+        var trackedTripOrder = trip.TripOrders.First(item => item.OrderId == order.Id);
+        var receivedAtUtc = trackedTripOrder.EstimatedArrivalAtUtc;
+        var route = BuildTripRouteToCustomer(trip, order.Id);
+        var position = Interpolate(route, trip.FlyingStartedAtUtc, receivedAtUtc, utcNow);
         var remainingDistance = CalculateRemainingDistance(route, position);
-        var friendlyStatus = GetFriendlyTripStatus(state.TripStatus, trip, utcNow);
+        var isReceived = utcNow >= receivedAtUtc;
+        var friendlyStatus = isReceived ? "Entrega concluída" : GetFriendlyTripStatus(state.TripStatus);
 
         return new CustomerTrackingResponse(
             order.Id,
             $"PED-{order.Id}",
             friendlyStatus,
-            state.TripStatus.ToString(),
+            isReceived ? "Received" : state.TripStatus.ToString(),
             trip.Drone.Code,
             trip.Id,
             null,
@@ -93,9 +96,9 @@ public sealed class CustomerSimulationService : ICustomerSimulationService
             new RoutePointResponse(order.DestinationX, order.DestinationY),
             route,
             trip.LoadingStartedAtUtc,
-            trip.CompletedAtUtc,
-            state.ProgressPercentage,
-            remainingDistance,
+            receivedAtUtc,
+            CalculateProgressPercentage(trip.LoadingStartedAtUtc, receivedAtUtc, utcNow),
+            isReceived ? 0 : remainingDistance,
             new RoutePointResponse(position.X, position.Y),
             GetFeedback(friendlyStatus, remainingDistance, trip.Drone.Code));
     }
@@ -106,17 +109,18 @@ public sealed class CustomerSimulationService : ICustomerSimulationService
         var route = new[]
         {
             new CustomerRoutePointResponse(0, "Base", null, null, null, null, delivery.StartX, delivery.StartY),
-            new CustomerRoutePointResponse(1, "CustomerDestination", order.Id, $"PED-{order.Id}", order.Priority, order.PackageWeightKg, order.DestinationX, order.DestinationY),
-            new CustomerRoutePointResponse(2, "Base", null, null, null, null, delivery.EndX, delivery.EndY)
+            new CustomerRoutePointResponse(1, "CustomerDestination", order.Id, $"PED-{order.Id}", order.Priority, order.PackageWeightKg, order.DestinationX, order.DestinationY)
         };
-        var position = Interpolate(route, delivery.FlyingStartedAtUtc, delivery.CompletedAtUtc, utcNow);
+        var receivedAtUtc = delivery.ReturningStartedAtUtc;
+        var position = Interpolate(route, delivery.FlyingStartedAtUtc, receivedAtUtc, utcNow);
         var remainingDistance = CalculateRemainingDistance(route, position);
-        var friendlyStatus = GetFriendlyDeliveryStatus(state.DeliveryStatus);
+        var isReceived = utcNow >= receivedAtUtc;
+        var friendlyStatus = isReceived ? "Entrega concluída" : GetFriendlyDeliveryStatus(state.DeliveryStatus);
         return new CustomerTrackingResponse(
             order.Id,
             $"PED-{order.Id}",
             friendlyStatus,
-            state.DeliveryStatus.ToString(),
+            isReceived ? "Received" : state.DeliveryStatus.ToString(),
             delivery.Drone.Code,
             null,
             delivery.Id,
@@ -125,9 +129,9 @@ public sealed class CustomerSimulationService : ICustomerSimulationService
             new RoutePointResponse(order.DestinationX, order.DestinationY),
             route,
             delivery.LoadingStartedAtUtc,
-            delivery.CompletedAtUtc,
-            state.ProgressPercentage,
-            remainingDistance,
+            receivedAtUtc,
+            CalculateProgressPercentage(delivery.LoadingStartedAtUtc, receivedAtUtc, utcNow),
+            isReceived ? 0 : remainingDistance,
             new RoutePointResponse(position.X, position.Y),
             GetFeedback(friendlyStatus, remainingDistance, delivery.Drone.Code));
     }
@@ -160,15 +164,15 @@ public sealed class CustomerSimulationService : ICustomerSimulationService
             "Estamos procurando o melhor drone para sua entrega.");
     }
 
-    private IReadOnlyList<CustomerRoutePointResponse> BuildTripRoute(Trip trip, int trackedOrderId)
+    private IReadOnlyList<CustomerRoutePointResponse> BuildTripRouteToCustomer(Trip trip, int trackedOrderId)
     {
         var points = new List<CustomerRoutePointResponse>
         {
             new(0, "Base", null, null, null, null, 0, 0)
         };
-        points.AddRange(trip.TripOrders
-            .OrderBy(item => item.DeliverySequence)
-            .Select(item => new CustomerRoutePointResponse(
+        foreach (var item in trip.TripOrders.OrderBy(item => item.DeliverySequence))
+        {
+            points.Add(new CustomerRoutePointResponse(
                 item.DeliverySequence,
                 item.OrderId == trackedOrderId ? "CustomerDestination" : "Delivery",
                 item.OrderId,
@@ -176,8 +180,13 @@ public sealed class CustomerSimulationService : ICustomerSimulationService
                 item.Order.Priority,
                 item.Order.PackageWeightKg,
                 item.Order.DestinationX,
-                item.Order.DestinationY)));
-        points.Add(new CustomerRoutePointResponse(points.Count, "Base", null, null, null, null, 0, 0));
+                item.Order.DestinationY));
+            if (item.OrderId == trackedOrderId)
+            {
+                break;
+            }
+        }
+
         return points;
     }
 
@@ -231,15 +240,22 @@ public sealed class CustomerSimulationService : ICustomerSimulationService
     private decimal CalculateRouteDistance(IReadOnlyList<CustomerRoutePointResponse> route) =>
         route.Skip(1).Select((point, index) => _distanceService.Calculate(route[index].X, route[index].Y, point.X, point.Y)).Sum();
 
-    private static string GetFriendlyTripStatus(TripStatus status, Trip trip, DateTime utcNow) =>
+    private static int CalculateProgressPercentage(DateTime start, DateTime receivedAtUtc, DateTime utcNow)
+    {
+        var totalSeconds = Math.Max(1, (int)Math.Ceiling((receivedAtUtc - start).TotalSeconds));
+        var elapsedSeconds = Math.Clamp((int)Math.Floor((utcNow - start).TotalSeconds), 0, totalSeconds);
+        return Math.Clamp((int)Math.Floor(elapsedSeconds / (double)totalSeconds * 100), 0, 100);
+    }
+
+    private static string GetFriendlyTripStatus(TripStatus status) =>
         status switch
         {
-            TripStatus.Planned => "Sua entrega foi planejada e sera iniciada em breve",
+            TripStatus.Planned => "Sua entrega foi planejada e será iniciada em breve",
             TripStatus.Loading => "Drone sendo preparado",
-            TripStatus.Flying => "Seu pacote esta a caminho",
+            TripStatus.Flying => "Seu pacote está a caminho",
             TripStatus.Delivering => "O drone chegou ao destino",
-            TripStatus.Returning => utcNow >= trip.CompletedAtUtc ? "Entrega concluida" : "Seu pacote esta a caminho",
-            TripStatus.Completed => "Entrega concluida",
+            TripStatus.Returning => "Entrega concluída",
+            TripStatus.Completed => "Entrega concluída",
             TripStatus.Cancelled => "Este pedido foi cancelado",
             _ => "Acompanhando pedido"
         };
@@ -248,24 +264,24 @@ public sealed class CustomerSimulationService : ICustomerSimulationService
         status switch
         {
             DeliveryStatus.Allocated => "Drone sendo preparado",
-            DeliveryStatus.InTransit => "Seu pacote esta a caminho",
-            DeliveryStatus.Delivered => "Entrega concluida",
-            DeliveryStatus.Failed => "Ainda nao foi possivel definir uma rota segura para sua entrega",
+            DeliveryStatus.InTransit => "Seu pacote está a caminho",
+            DeliveryStatus.Delivered => "Entrega concluída",
+            DeliveryStatus.Failed => "Ainda não foi possível definir uma rota segura para sua entrega",
             _ => "Acompanhando pedido"
         };
 
     private static string GetFeedback(string status, decimal remainingDistance, string droneCode)
     {
-        if (status == "Entrega concluida")
+        if (status == "Entrega concluída")
         {
-            return "Entrega concluida com sucesso.";
+            return "Pedido recebido com sucesso. O drone está retornando à base.";
         }
 
         if (remainingDistance <= 2.5m)
         {
-            return $"Seu pacote esta a aproximadamente {Math.Max(1, (int)Math.Round(remainingDistance))} quadras de distancia.";
+            return $"Seu pacote está a aproximadamente {Math.Max(1, (int)Math.Round(remainingDistance))} quadras de distância.";
         }
 
-        return $"Seu pedido foi atribuido ao {droneCode}. O drone saiu da base e esta a aproximadamente {remainingDistance:0.##} km de distancia.";
+        return $"Seu pedido foi atribuído ao {droneCode}. O drone saiu da base e está a aproximadamente {remainingDistance:0.##} km de distância.";
     }
 }

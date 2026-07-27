@@ -27,6 +27,10 @@ export function deactivateDrone(id: number): Promise<DroneResponse> {
   return apiRequest<DroneResponse>(`/api/drones/${id}/deactivate`, { method: "PATCH" });
 }
 
+export function deleteDrone(id: number): Promise<void> {
+  return apiRequest<void>(`/api/drones/${id}`, { method: "DELETE" });
+}
+
 export function getDroneSettings(): Promise<DroneSettingsResponse> {
   return apiRequest<DroneSettingsResponse>("/api/drone-settings");
 }

@@ -58,8 +58,8 @@ export const droneStatusLabels: Record<DroneStatus, string> = {
   Delivering: "Entregando",
   Returning: "Retornando à base",
   Charging: "Recarregando",
-  Maintenance: "Em manutenÃ§Ã£o",
-  Unavailable: "IndisponÃ­vel"
+  Maintenance: "Em manutenção",
+  Unavailable: "Indisponível"
 };
 
 export const orderStatusLabels: Record<OrderStatus, string> = {
@@ -88,7 +88,7 @@ export const queueStatusLabels: Record<OrderQueueStatus, string> = {
   Queued: "Na fila",
   Planned: "Planejado",
   Allocated: "Alocado",
-  Completed: "Conclui­do",
+  Completed: "Concluído",
   Cancelled: "Cancelado"
 };
 

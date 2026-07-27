@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createDrone, updateDroneSettings } from "./dronesApi";
+import { createDrone, deleteDrone, updateDroneSettings } from "./dronesApi";
 import { createOrder, queueOrder, removeOrderFromQueue } from "./ordersApi";
 import { getReport } from "./reportsApi";
 
@@ -51,6 +51,15 @@ describe("HTTP services", () => {
       method: "PUT",
       body: JSON.stringify({ batterySafetyMarginPercentagePoints: 8 })
     }));
+  });
+
+  it("sends drone delete requests to the expected endpoint", async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(null, { status: 204 })));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await deleteDrone(7);
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/drones/7", expect.objectContaining({ method: "DELETE" }));
   });
 
   it("builds report query parameters", async () => {

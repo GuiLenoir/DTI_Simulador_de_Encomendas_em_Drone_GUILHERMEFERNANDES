@@ -74,7 +74,7 @@ export function CustomerSimulationPage() {
         <div className="panel-heading">
           <div>
             <h3>Fazer pedido</h3>
-            <span>1 unidade no plano representa 1 quadra nesta simulacao.</span>
+            <span>1 unidade no plano representa 1 quadra nesta simulação.</span>
           </div>
         </div>
         {error && <ErrorState message={error} />}
@@ -84,7 +84,7 @@ export function CustomerSimulationPage() {
             <input required value={form.customerName} onChange={(event) => setForm({ ...form, customerName: event.target.value })} />
           </label>
           <label>
-            Descricao do pacote
+            Descrição do pacote
             <input value={form.packageDescription ?? ""} onChange={(event) => setForm({ ...form, packageDescription: event.target.value })} />
           </label>
           <div className="field-row">
@@ -145,11 +145,11 @@ export function CustomerSimulationPage() {
               <Detail label="Prioridade" value={getPriorityLabel(tracking.priority)} />
               <Detail label="Peso" value={`${formatDecimal(tracking.weightKg)} kg`} />
               <Detail label="Drone" value={tracking.droneCode ?? "Aguardando"} />
-              <Detail label="Previsao" value={tracking.estimatedCompletionAtUtc ? formatDateTime(tracking.estimatedCompletionAtUtc) : "Aguardando planejamento"} />
-              <Detail label="Distancia restante" value={`${formatDecimal(tracking.remainingDistance)} km`} />
+              <Detail label="Previsão de recebimento" value={tracking.estimatedCompletionAtUtc ? formatDateTime(tracking.estimatedCompletionAtUtc) : "Aguardando planejamento"} />
+              <Detail label="Distância restante" value={`${formatDecimal(tracking.remainingDistance)} km`} />
             </div>
             <div className="progress-bar"><div style={{ width: `${Math.max(0, Math.min(100, tracking.progressPercentage))}%` }} /></div>
-            <p className="progress-copy">{tracking.progressPercentage}% concluido</p>
+            <p className="progress-copy">{tracking.progressPercentage}% concluído</p>
           </section>
           <section className="panel table-panel wide-panel">
             <div className="panel-heading">
@@ -169,7 +169,7 @@ export function CustomerSimulationPage() {
 function CustomerMap({ tracking }: { tracking: CustomerTrackingResponse }) {
   const bounds = useMemo(() => getBounds([...tracking.route, tracking.currentPosition]), [tracking]);
   const routePoints = tracking.route.map((point) => `${toX(point.x, bounds)},${toY(point.y, bounds)}`).join(" ");
-  const completed = tracking.internalStatus === "Completed" || tracking.friendlyStatus === "Entrega concluida";
+  const completed = tracking.internalStatus === "Received" || tracking.internalStatus === "Completed" || tracking.friendlyStatus === "Entrega concluída";
 
   return (
     <svg className="zone-map customer-map" viewBox="0 0 600 360" role="img" aria-label="Mapa de acompanhamento do cliente">
@@ -218,8 +218,8 @@ function toY(value: number, bounds: { min: number; max: number }) {
 
 function getFriendlyError(error: unknown): string {
   if (error instanceof ApiError) {
-    return "Ainda nao foi possivel definir uma rota segura para sua entrega.";
+    return "Ainda não foi possível definir uma rota segura para sua entrega.";
   }
 
-  return "Nao foi possivel conectar ao servidor.";
+  return "Não foi possível conectar ao servidor.";
 }

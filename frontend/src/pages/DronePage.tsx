@@ -5,6 +5,7 @@ import {
   activateDrone,
   createDrone,
   deactivateDrone,
+  deleteDrone,
   getDroneSettings,
   getDrones,
   updateDrone,
@@ -17,7 +18,7 @@ import { formatDateTime, formatDecimal, formatTime } from "../utils/formatters";
 import { getDroneStatusLabel } from "../utils/labels";
 
 const availableStatuses: DroneStatus[] = ["Idle", "Charging", "Maintenance", "Unavailable", "Flying"];
-const editableStatuses: DroneStatus[] = ["Idle", "Charging", "Maintenance", "Unavailable", "Flying"];
+const editableStatuses: DroneStatus[] = ["Idle", "Charging", "Maintenance", "Unavailable"];
 const blankForm: DroneRequest = {
   code: "",
   name: "",
@@ -122,7 +123,7 @@ export function DronePage() {
 
   async function toggleDrone(drone: DroneResponse) {
     if (drone.hasExecutingTrip) {
-      setError("Nao e possivel alterar um drone em viagem.");
+      setError("Não é possível alterar um drone em viagem.");
       return;
     }
 
@@ -147,13 +148,33 @@ export function DronePage() {
     }
   }
 
+  async function removeDrone(drone: DroneResponse) {
+    if (drone.hasExecutingTrip) {
+      setError("Não é possível excluir um drone em viagem.");
+      return;
+    }
+
+    const confirmed = window.confirm("Excluir este drone remove ele da operação. Viagens planejadas serão canceladas e os pedidos voltarão para a fila. Continuar?");
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await deleteDrone(drone.id);
+      setSuccess("Drone excluído.");
+      await loadData();
+    } catch (err) {
+      setError(getFriendlyError(err));
+    }
+  }
+
   async function saveSettings(event: FormEvent) {
     event.preventDefault();
     setIsSaving(true);
     setError(null);
     try {
       await updateDroneSettings(margin);
-      setSuccess("Configuracoes dos drones atualizadas.");
+      setSuccess("Configurações dos drones atualizadas.");
       setIsSettingsOpen(false);
       await loadData();
     } catch (err) {
@@ -171,7 +192,7 @@ export function DronePage() {
           <span>Margem global: {formatDecimal(settings?.batterySafetyMarginPercentagePoints ?? 5)} p.p.</span>
         </div>
         <div className="action-row">
-          <button className="secondary-action icon-action" type="button" title="Configuracoes dos drones" onClick={() => setIsSettingsOpen(true)}>
+          <button className="secondary-action icon-action" type="button" title="Configurações dos drones" onClick={() => setIsSettingsOpen(true)}>
             ⚙
           </button>
           <button className="primary-action compact-action" type="button" onClick={openCreate}>
@@ -199,7 +220,7 @@ export function DronePage() {
           </select>
         </label>
         <label>
-          Situacao
+          Situação
           <select value={activeFilter} onChange={(event) => setActiveFilter(event.target.value)}>
             <option value="all">Todos</option>
             <option value="active">Ativos</option>
@@ -217,7 +238,7 @@ export function DronePage() {
           <table>
             <thead>
               <tr>
-                <th>Codigo</th>
+                <th>Código</th>
                 <th>Nome</th>
                 <th>Capacidade</th>
                 <th>Alcance</th>
@@ -226,7 +247,7 @@ export function DronePage() {
                 <th>Consumo</th>
                 <th>Status</th>
                 <th>Ativo</th>
-                <th>Acoes</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -244,7 +265,7 @@ export function DronePage() {
                   <td>
                     <span className="status-pill">{getDroneStatusLabel(drone.status)}</span>
                   </td>
-                  <td>{drone.isActive ? "Sim" : "Nao"}</td>
+                  <td>{drone.isActive ? "Sim" : "Não"}</td>
                   <td>
                     <div className="row-action-group">
                       <button className="row-action muted-action" type="button" onClick={() => setDetailsDrone(drone)}>
@@ -255,6 +276,9 @@ export function DronePage() {
                       </button>
                       <button className="row-action muted-action" type="button" onClick={() => void toggleDrone(drone)} disabled={drone.hasExecutingTrip}>
                         {drone.isActive ? "Desativar" : "Reativar"}
+                      </button>
+                      <button className="row-action danger-action" type="button" onClick={() => void removeDrone(drone)} disabled={drone.hasExecutingTrip || !drone.isActive}>
+                        Excluir
                       </button>
                     </div>
                   </td>
@@ -282,17 +306,17 @@ export function DronePage() {
         <div className="modal-backdrop" role="presentation">
           <form className="modal-panel compact-modal" onSubmit={saveSettings}>
             <div className="panel-heading">
-              <h3>Configuracoes dos drones</h3>
+              <h3>Configurações dos drones</h3>
               <button className="secondary-action" type="button" onClick={() => setIsSettingsOpen(false)}>
                 Fechar
               </button>
             </div>
             <label>
-              Margem de seguranca global da bateria (pontos percentuais)
+              Margem de segurança global da bateria (pontos percentuais)
               <input min="0" max="30" step="0.1" type="number" value={margin} onChange={(event) => setMargin(Number(event.target.value))} />
             </label>
             <button className="primary-action" type="submit" disabled={isSaving}>
-              Salvar configuracoes
+              Salvar configurações
             </button>
           </form>
         </div>
@@ -317,6 +341,7 @@ function DroneFormModal({
   onSubmit: (event: FormEvent) => void;
 }) {
   const operationalDisabled = Boolean(drone?.hasExecutingTrip);
+  const statusOptions = editableStatuses.includes(form.status) ? editableStatuses : [form.status, ...editableStatuses];
 
   return (
     <div className="modal-backdrop" role="presentation">
@@ -324,30 +349,30 @@ function DroneFormModal({
         <div className="panel-heading">
           <div>
             <h3>{drone ? "Editar drone" : "Novo drone"}</h3>
-            {operationalDisabled && <span>Drone em viagem: apenas nome e observacoes podem ser alterados.</span>}
+            {operationalDisabled && <span>Drone em viagem: apenas nome e observações podem ser alterados.</span>}
           </div>
           <button className="secondary-action" type="button" onClick={onClose}>
             Fechar
           </button>
         </div>
         <div className="field-row">
-          <TextField label="Codigo" value={form.code} disabled={operationalDisabled} onChange={(value) => onChange({ ...form, code: value })} />
+          <TextField label="Código" value={form.code} disabled={operationalDisabled} onChange={(value) => onChange({ ...form, code: value })} />
           <TextField label="Nome" value={form.name} onChange={(value) => onChange({ ...form, name: value })} />
         </div>
         <div className="field-row">
-          <NumberField label="Capacidade maxima (kg)" value={form.maxPackageWeightKg} disabled={operationalDisabled} onChange={(value) => onChange({ ...form, maxPackageWeightKg: value })} />
-          <NumberField label="Alcance maximo (km)" value={form.maxRangeKm} disabled={operationalDisabled} onChange={(value) => onChange({ ...form, maxRangeKm: value })} />
+          <NumberField label="Capacidade máxima (kg)" value={form.maxPackageWeightKg} disabled={operationalDisabled} onChange={(value) => onChange({ ...form, maxPackageWeightKg: value })} />
+          <NumberField label="Alcance máximo (km)" value={form.maxRangeKm} disabled={operationalDisabled} onChange={(value) => onChange({ ...form, maxRangeKm: value })} />
         </div>
         <div className="field-row">
           <NumberField label="Bateria atual (%)" min={0} max={100} value={form.batteryLevelPercent} disabled={operationalDisabled} onChange={(value) => onChange({ ...form, batteryLevelPercent: value })} />
-          <NumberField label="Velocidade media (km/h)" value={form.averageSpeedKmPerHour} disabled={operationalDisabled} onChange={(value) => onChange({ ...form, averageSpeedKmPerHour: value })} />
+          <NumberField label="Velocidade média (km/h)" value={form.averageSpeedKmPerHour} disabled={operationalDisabled} onChange={(value) => onChange({ ...form, averageSpeedKmPerHour: value })} />
         </div>
         <div className="field-row">
           <NumberField label="Consumo por km (p.p.)" value={form.batteryConsumptionPercentagePerKm} disabled={operationalDisabled} onChange={(value) => onChange({ ...form, batteryConsumptionPercentagePerKm: value })} />
           <label>
             Status operacional
             <select value={form.status} disabled={operationalDisabled} onChange={(event) => onChange({ ...form, status: event.target.value as DroneStatus })}>
-              {editableStatuses.map((status) => (
+              {statusOptions.map((status) => (
                 <option key={status} value={status}>
                   {getDroneStatusLabel(status)}
                 </option>
@@ -356,11 +381,11 @@ function DroneFormModal({
           </label>
         </div>
         <div className="field-row">
-          <NumberField label="Posicao X" value={form.currentX} disabled={operationalDisabled} onChange={(value) => onChange({ ...form, currentX: value })} />
-          <NumberField label="Posicao Y" value={form.currentY} disabled={operationalDisabled} onChange={(value) => onChange({ ...form, currentY: value })} />
+          <NumberField label="Posição X" value={form.currentX} disabled={operationalDisabled} onChange={(value) => onChange({ ...form, currentX: value })} />
+          <NumberField label="Posição Y" value={form.currentY} disabled={operationalDisabled} onChange={(value) => onChange({ ...form, currentY: value })} />
         </div>
         <label>
-          Observacoes
+          Observações
           <textarea rows={3} value={form.notes ?? ""} onChange={(event) => onChange({ ...form, notes: event.target.value })} />
         </label>
         <label className="checkbox-row">
@@ -386,21 +411,21 @@ function DroneDetailsModal({ drone, onClose }: { drone: DroneResponse; onClose: 
           </button>
         </div>
         <div className="detail-grid">
-          <Detail label="Codigo" value={drone.code} />
+          <Detail label="Código" value={drone.code} />
           <Detail label="Nome" value={drone.name} />
           <Detail label="Status" value={getDroneStatusLabel(drone.status)} />
-          <Detail label="Ativo" value={drone.isActive ? "Sim" : "Nao"} />
+          <Detail label="Ativo" value={drone.isActive ? "Sim" : "Não"} />
           <Detail label="Capacidade" value={`${formatDecimal(drone.maxPackageWeightKg)} kg`} />
           <Detail label="Alcance" value={`${formatDecimal(drone.maxRangeKm)} km`} />
           <Detail label="Bateria" value={`${formatDecimal(drone.batteryLevelPercent)}%`} />
           <Detail label="Margem global" value={`${formatDecimal(drone.batterySafetyMarginPercentagePoints)} p.p.`} />
           <Detail label="Velocidade" value={`${formatDecimal(drone.averageSpeedKmPerHour)} km/h`} />
           <Detail label="Consumo" value={`${formatDecimal(drone.batteryConsumptionPercentagePerKm)} p.p./km`} />
-          <Detail label="Posicao" value={`(${formatDecimal(drone.currentX)}, ${formatDecimal(drone.currentY)})`} />
+          <Detail label="Posição" value={`(${formatDecimal(drone.currentX)}, ${formatDecimal(drone.currentY)})`} />
           <Detail label="Atualizado" value={formatDateTime(drone.updatedAt)} />
         </div>
         <div className="state state-muted">
-          {drone.notes ? drone.notes : "Sem observacoes registradas."}
+          {drone.notes ? drone.notes : "Sem observações registradas."}
           <br />
           {getBatteryStatus(drone)}
         </div>
@@ -485,24 +510,24 @@ function getBatteryStatus(drone: DroneResponse): string {
     return drone.chargingCompletedAtUtc ? `Recarregando, completa as ${formatTime(drone.chargingCompletedAtUtc)}.` : "Recarregando.";
   }
 
-  return "Bateria pronta para operacao.";
+  return "Bateria pronta para operação.";
 }
 
 function getFriendlyError(error: unknown): string {
   if (error instanceof ApiError) {
     const messages: Record<string, string> = {
-      DRONE_CODE_ALREADY_EXISTS: "Ja existe um drone com esse codigo.",
-      DRONE_NOT_FOUND: "Drone nao encontrado.",
-      DRONE_IS_EXECUTING_TRIP: "Nao e possivel alterar um drone em viagem.",
+      DRONE_CODE_ALREADY_EXISTS: "Já existe um drone com esse código.",
+      DRONE_NOT_FOUND: "Drone não encontrado.",
+      DRONE_IS_EXECUTING_TRIP: "Não é possível alterar um drone em viagem.",
       DRONE_HAS_PLANNED_TRIPS: "O drone possui viagens planejadas.",
       INVALID_BATTERY_PERCENTAGE: "A bateria deve estar entre 0% e 100%.",
       INVALID_DRONE_CAPACITY: "Capacidade, velocidade e consumo devem ser maiores que zero.",
       INVALID_DRONE_RANGE: "O alcance deve ser maior que zero.",
-      INVALID_DRONE_STATUS: "Status do drone invalido.",
+      INVALID_DRONE_STATUS: "Status do drone inválido.",
       GLOBAL_SAFETY_MARGIN_INVALID: "A margem global deve estar entre 0 e 30 pontos percentuais."
     };
-    return error.code && messages[error.code] ? messages[error.code] : "Nao foi possivel processar a operacao.";
+    return error.code && messages[error.code] ? messages[error.code] : "Não foi possível processar a operação.";
   }
 
-  return "Nao foi possivel conectar ao servidor.";
+  return "Não foi possível conectar ao servidor.";
 }

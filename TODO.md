@@ -99,3 +99,6 @@
 - [x] Improve reports delivery map explorer
 - [x] Add simulated customer frontend tab
 - [x] Document planning heuristic and no-fly-zone routing
+- [x] Fix drone form Portuguese labels and operational status options
+- [x] Add drone delete action to the frontend drone management page
+- [x] Mark simulated customer orders as received at the delivery point before drone return
