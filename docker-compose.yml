@@ -1,0 +1,52 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/DroneDelivery.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: Server=database;Port=3306;Database=${MYSQL_DATABASE:-drone_delivery};User=${MYSQL_USER:-drone_user};Password=${MYSQL_PASSWORD:-drone_password};
+      DroneDelivery__BatteryConsumptionPerKm: ${BATTERY_CONSUMPTION_PER_KM:-1.5}
+      DroneDelivery__BatterySafetyMarginPercentagePoints: ${BATTERY_SAFETY_MARGIN_PERCENTAGE_POINTS:-5}
+      DroneDelivery__DroneSpeedKmPerHour: ${DRONE_SPEED_KM_PER_HOUR:-60}
+      Simulation__LoadingDurationSeconds: ${SIMULATION_LOADING_DURATION_SECONDS:-3}
+      Simulation__DeliveryDurationSeconds: ${SIMULATION_DELIVERY_DURATION_SECONDS:-3}
+      Simulation__SecondsPerKilometer: ${SIMULATION_SECONDS_PER_KILOMETER:-2}
+      Simulation__ChargingPercentagePointsPerSecond: ${SIMULATION_CHARGING_PERCENTAGE_POINTS_PER_SECOND:-2}
+    ports:
+      - "8080:8080"
+    depends_on:
+      database:
+        condition: service_healthy
+
+  database:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-drone_delivery}
+      MYSQL_USER: ${MYSQL_USER:-drone_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-drone_password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root_password}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+volumes:
+  mysql-data:
