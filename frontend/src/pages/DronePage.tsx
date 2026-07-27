@@ -154,14 +154,14 @@ export function DronePage() {
       return;
     }
 
-    const confirmed = window.confirm("Excluir este drone remove ele da operação. Viagens planejadas serão canceladas e os pedidos voltarão para a fila. Continuar?");
+    const confirmed = window.confirm("Excluir definitivamente este drone? Viagens planejadas serão canceladas e históricos vinculados a ele também serão removidos. Continuar?");
     if (!confirmed) {
       return;
     }
 
     try {
       await deleteDrone(drone.id);
-      setSuccess("Drone excluído.");
+      setSuccess("Drone excluído definitivamente.");
       await loadData();
     } catch (err) {
       setError(getFriendlyError(err));

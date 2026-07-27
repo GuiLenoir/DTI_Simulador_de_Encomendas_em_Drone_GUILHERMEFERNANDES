@@ -171,8 +171,24 @@ public sealed class DroneService : IDroneService
         return await GetByIdAsync(id, cancellationToken);
     }
 
-    public Task DeleteAsync(int id, CancellationToken cancellationToken) =>
-        DeactivateAsync(id, cancellationToken);
+    public async Task DeleteAsync(int id, CancellationToken cancellationToken)
+    {
+        var utcNow = _clock.UtcNow;
+        var drone = await FindAsync(id, cancellationToken);
+        if (await HasExecutingTripAsync(drone.Id, utcNow, cancellationToken))
+        {
+            throw new ValidationException("DRONE_IS_EXECUTING_TRIP", "Drone is executing trip", "Drone cannot be deleted while a trip is executing.");
+        }
+
+        if (await HasPlannedTripsAsync(drone.Id, utcNow, cancellationToken))
+        {
+            await CancelPlannedTripsAsync(drone.Id, utcNow, cancellationToken);
+        }
+
+        _dbContext.Drones.Remove(drone);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _deliveryPlanningService.ProcessQueueAsync(cancellationToken);
+    }
 
     private async Task<Drone> FindAsync(int id, CancellationToken cancellationToken) =>
         await _dbContext.Drones.FirstOrDefaultAsync(drone => drone.Id == id, cancellationToken)

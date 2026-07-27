@@ -146,6 +146,55 @@ public sealed class DroneServiceTests
     }
 
     [Fact]
+    public async Task DeleteAsync_RemovesDroneFromDatabase()
+    {
+        await using var dbContext = TestDbContextFactory.Create();
+        var drone = CreateDrone("DRN");
+        dbContext.Drones.Add(drone);
+        await dbContext.SaveChangesAsync();
+        var service = CreateService(dbContext);
+
+        await service.DeleteAsync(drone.Id, CancellationToken.None);
+
+        Assert.Empty(dbContext.Drones);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_BlocksExecutingDrone()
+    {
+        await using var dbContext = TestDbContextFactory.Create();
+        var now = new DateTime(2026, 7, 25, 12, 0, 0, DateTimeKind.Utc);
+        var drone = CreateDrone("DRN");
+        dbContext.Drones.Add(drone);
+        await dbContext.SaveChangesAsync();
+        dbContext.Trips.Add(new Trip
+        {
+            DroneId = drone.Id,
+            Status = TripStatus.Loading,
+            PlannedAtUtc = now.AddMinutes(-1),
+            LoadingStartedAtUtc = now.AddMinutes(-1),
+            FlyingStartedAtUtc = now.AddMinutes(1),
+            DeliveringStartedAtUtc = now.AddMinutes(2),
+            ReturningStartedAtUtc = now.AddMinutes(3),
+            CompletedAtUtc = now.AddMinutes(4),
+            TotalWeightKg = 1,
+            EstimatedDistanceKm = 1,
+            EstimatedBatteryConsumptionPercentagePoints = 1,
+            BatterySafetyMarginPercentagePoints = 5,
+            MinimumRequiredBatteryPercentage = 6,
+            BatteryAtDeparturePercentage = 100,
+            ExpectedBatteryAtReturnPercentage = 99
+        });
+        await dbContext.SaveChangesAsync();
+        var service = CreateService(dbContext);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() => service.DeleteAsync(drone.Id, CancellationToken.None));
+
+        Assert.Equal("DRONE_IS_EXECUTING_TRIP", exception.Code);
+        Assert.Single(dbContext.Drones);
+    }
+
+    [Fact]
     public async Task GetAllAsync_CompletesElapsedIndividualDeliveriesAndUpdatesBattery()
     {
         await using var dbContext = TestDbContextFactory.Create();

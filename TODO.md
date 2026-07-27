@@ -102,3 +102,4 @@
 - [x] Fix drone form Portuguese labels and operational status options
 - [x] Add drone delete action to the frontend drone management page
 - [x] Mark simulated customer orders as received at the delivery point before drone return
+- [x] Make drone delete remove the database record instead of deactivating
